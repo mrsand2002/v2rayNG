@@ -10,7 +10,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.v2ray.ang"
+        applicationId = "com.mrsand2002.sandeepavpn"
         minSdk = 24
         targetSdk = 37
         versionCode = 760
