@@ -103,6 +103,7 @@ class MainActivity : HelperBaseComponentActivity() {
     }
 
     
+
 @Composable
 override fun ScreenContent() {
     BackHandler { moveTaskToBack(false) }
@@ -112,7 +113,7 @@ override fun ScreenContent() {
 
     ZentHomeScreen(
         isRunning = state.isRunning,
-        hasProfile = !state.selectedGuid.isNullOrEmpty(),
+        hasProfile = !state.selectedGuid.isNullOrBlank(),
         onToggleVpn = { handleFabAction() }
     )
 }
