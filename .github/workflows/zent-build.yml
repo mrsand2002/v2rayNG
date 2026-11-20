@@ -1,0 +1,70 @@
+name: Zent Plus Integrated APK
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "Independent Zent API HTTPS origin, e.g. https://api.example.org"
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - name: Checkout app and native submodules
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Apply full Zent Plus package in one run
+        env:
+          ZENT_API_URL: ${{ inputs.api_url }}
+        run: |
+          test -f zent-overlay.zip
+          unzip -o zent-overlay.zip -d .
+          python3 zent/github/apply_zent.py
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          log-accepted-android-sdk-licenses: false
+          cmdline-tools-version: '14742923'
+          packages: 'platforms;android-37.0 build-tools;37.0.0 platform-tools'
+      - name: Install native development kit
+        run: |
+          echo y | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=0 --install 'ndk;30.0.16248370'
+          echo "NDK_HOME=$ANDROID_HOME/ndk/30.0.16248370" >> "$GITHUB_ENV"
+          sed -i '/compileSdk = 37/a\ ndkVersion = "30.0.16248370"' V2rayNG/app/build.gradle.kts
+      - name: Build tun library
+        run: |
+          bash compile-hevtun.sh
+          cp -r libs V2rayNG/app/
+      - name: Determine Xray library version
+        run: |
+          cd AndroidLibXrayLite
+          echo "CURRENT_TAG=$(git describe --tags --abbrev=0)" >> "$GITHUB_ENV"
+      - name: Download Xray library
+        uses: robinraju/release-downloader@v1.13
+        with:
+          repository: 2dust/AndroidLibXrayLite
+          tag: ${{ env.CURRENT_TAG }}
+          fileName: libv2ray.aar
+          out-file-path: V2rayNG/app/libs/
+      - name: Set up Java
+        uses: actions/setup-java@v6.3.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build Zent Plus debug APK
+        working-directory: V2rayNG
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+          ./gradlew :app:assemblePlaystoreDebug --no-daemon
+      - name: Save universal Zent Plus debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: zent-plus-apk
+          path: V2rayNG/app/build/outputs/apk/playstore/debug/*universal*.apk
+          if-no-files-found: error
