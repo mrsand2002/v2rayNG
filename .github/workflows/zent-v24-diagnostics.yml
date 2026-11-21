@@ -1,0 +1,168 @@
+name: Zent Plus v2.5.1 — Secure SNI Certificate Fix APK
+
+on:
+  push:
+    branches:
+      - 'feature/zent-diagnostic-apk'
+    paths:
+      - '.github/workflows/zent-v24-diagnostics.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout source and native submodules
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Prepare Zent Plus v2.5.1 secure domain-fronted VLESS overlay
+        env:
+          ZENT_API_URL: https://zent-plus-backend-production.up.railway.app
+          ZENT_VERSION_NAME: '2.5.1'
+          ZENT_VERSION_CODE: '770'
+        run: |
+          test -s zent-v22-overlay.zip
+          unzip -oq zent-v22-overlay.zip -d .
+          python3 -m py_compile scripts/zent-v23-ui-patch.py scripts/zent-v24-diagnostics-patch.py scripts/zent-v25-managed-profile-fix.py zent/github/apply_zent.py
+          python3 scripts/zent-v23-ui-patch.py
+          python3 scripts/zent-v24-diagnostics-patch.py
+          python3 scripts/zent-v25-managed-profile-fix.py
+          python3 zent/github/apply_zent.py
+          python3 - <<'PYVERIFY'
+          from pathlib import Path
+          ui = Path('V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/ZentManagedScreen.kt').read_text(encoding='utf-8')
+          gradle = Path('V2rayNG/app/build.gradle.kts').read_text(encoding='utf-8')
+          assert 'Server Managed By Mr.මල' in ui
+          assert 'private fun ZentAppearanceCard(' in ui
+          assert 'RadioButton(selected = appearanceMode' not in ui
+          assert 'applicationId = "com.zentplus.vpn"' in gradle
+          assert 'versionCode = 770' in gradle
+          assert 'versionName = "2.5.1"' in gradle
+          assert '"Diagnostics" -> {' in ui
+          assert 'zent-managed-v4:' in ui
+          activity = Path('V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/MainActivity.kt').read_text(encoding='utf-8')
+          assert 'actual.password == expected.password' in activity
+          assert 'assigned.copy(verifyPeerCertByName = assigned.server!!.trim())' in activity
+          assert 'assigned.pinnedCA256.isNullOrBlank()' in activity
+          assert 'assigned.verifyPeerCertByName.isNullOrBlank()' in activity
+          assert 'allowInsecure = true' not in activity
+          assert 'actual.sni == expected.sni' in activity
+          assert 'actual.fingerPrint == expected.fingerPrint' in activity
+          assert 'actual.alpn == expected.alpn' in activity
+          assert 'PREF_OUTBOUND_DOMAIN_RESOLVE_METHOD, "0"' in activity
+          assert 'all.filter { it !in before }' not in activity
+          assert 'ZentDiagnostics.run(context' in ui
+          diagnostic = Path('V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/ZentDiagnostics.kt').read_text(encoding='utf-8')
+          assert 'vpnNetwork.openConnection' in diagnostic
+          assert 'ZentRuntimeEvents.snapshot(context)' in diagnostic
+          assert 'ZentSocksProbe.run(' in diagnostic
+          assert 'ZentCoreErrors.summarize()' in diagnostic
+          classifier = Path('V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/ZentCoreErrors.kt')
+          assert classifier.is_file()
+          assert 'Xray log contents withheld to protect server credentials' in classifier.read_text()
+          assert 'GoLog:W' in classifier.read_text()
+          assert Path('V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/ZentSocksProbe.kt').is_file()
+          probe = Path('V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/ZentSocksProbe.kt').read_text()
+          assert 'SOCKS5 failure category:' in probe
+          assert 'runOne(socksPort, username, password, "example.com", true)' in probe
+          assert 'runOne(socksPort, username, password, "example.com", false)' in probe
+          assert Path('V2rayNG/app/src/main/java/com/v2ray/ang/util/ZentRuntimeEvents.kt').is_file()
+          core = Path('V2rayNG/app/src/main/java/com/v2ray/ang/service/TProxyService.kt').read_text(encoding='utf-8')
+          assert 'HEV TUN native startup returned false' in core
+          assert 'HEV_TUN_STARTED' in core
+          assert 'ZentRuntimeEvents.record(this, "TUN_START_FAILED")' in Path('V2rayNG/app/src/main/java/com/v2ray/ang/service/CoreVpnService.kt').read_text()
+          assert 'XRAY_CORE_STARTED' in Path('V2rayNG/app/src/main/java/com/v2ray/ang/core/CoreServiceManager.kt').read_text()
+          print('v2.5.1 secure TLS/SNI preflight passed')
+          PYVERIFY
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          log-accepted-android-sdk-licenses: false
+          cmdline-tools-version: '14742923'
+          packages: 'platforms;android-37.0 build-tools;37.0.0 platform-tools'
+
+      - name: Install NDK
+        run: |
+          echo y | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=0 --install 'ndk;30.0.16248370'
+          echo "NDK_HOME=$ANDROID_HOME/ndk/30.0.16248370" >> "$GITHUB_ENV"
+          sed -i '/compileSdk = 37/a\ ndkVersion = "30.0.16248370"' V2rayNG/app/build.gradle.kts
+
+      - name: Build Android tun library
+        run: |
+          bash compile-hevtun.sh
+          cp -r libs V2rayNG/app/
+
+      - name: Determine native Xray release
+        run: |
+          cd AndroidLibXrayLite
+          echo "CURRENT_TAG=$(git describe --tags --abbrev=0)" >> "$GITHUB_ENV"
+
+      - name: Download Xray library
+        uses: robinraju/release-downloader@v1.13
+        with:
+          repository: 2dust/AndroidLibXrayLite
+          tag: ${{ env.CURRENT_TAG }}
+          fileName: libv2ray.aar
+          out-file-path: V2rayNG/app/libs/
+
+      - name: Set up Java
+        uses: actions/setup-java@v6.3.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Load existing permanent release signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ZENT_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.ZENT_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ZENT_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ZENT_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || {
+            echo 'Release requires the four existing ZENT signing secrets.' >&2
+            exit 1
+          }
+          mkdir -p "$RUNNER_TEMP/zent-signing"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/zent-signing/release.jks"
+          echo "ZENT_KEYSTORE_FILE=$RUNNER_TEMP/zent-signing/release.jks" >> "$GITHUB_ENV"
+          echo "ZENT_KEYSTORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ZENT_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ZENT_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Compile signed release APK
+        working-directory: V2rayNG
+        env:
+          GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx3g'
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+          ./gradlew :app:assemblePlaystoreRelease '-PABI_FILTERS=arm64-v8a' --no-daemon
+
+      - name: Verify package, version and APK signature
+        run: |
+          APK="$(find V2rayNG/app/build/outputs/apk -name '*arm64-v8a*.apk' -type f | head -1)"
+          test -n "$APK" && test -s "$APK"
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$APK" | tee /tmp/zent-badging.txt
+          grep 'package: name=' /tmp/zent-badging.txt | grep -q 'com.zentplus.vpn'
+          # ABI-specific ARM64 split APKs encode base version code 770 as 4000770.
+          grep 'package: name=' /tmp/zent-badging.txt | grep -q "versionCode='4000770'"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$APK"
+          mkdir -p artifacts
+          cp "$APK" artifacts/ZentPlus-2.5.1-secure-sni-fix-arm64-release.apk
+          test "$(find artifacts -maxdepth 1 -name '*.apk' -type f | wc -l)" -eq 1
+
+      - name: Upload signed update APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: zent-plus-v251-secure-sni-fix-release-apk
+          path: artifacts/*.apk
+          if-no-files-found: error
+          retention-days: 14

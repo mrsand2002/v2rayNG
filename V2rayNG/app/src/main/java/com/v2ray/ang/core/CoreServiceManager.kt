@@ -29,6 +29,7 @@ import com.v2ray.ang.service.DialerNativeService
 import com.v2ray.ang.service.DialerWebviewService
 import com.v2ray.ang.service.NetworkMonitor
 import com.v2ray.ang.util.LogUtil
+import com.v2ray.ang.util.ZentRuntimeEvents
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -104,6 +105,7 @@ object CoreServiceManager {
             doStartCoreLoop(service, vpnInterface)
             return true
         } catch (e: Exception) {
+            ZentRuntimeEvents.record(service, "XRAY_CORE_START_EXCEPTION")
             val message = e.message?.takeUnless { it.isBlank() } ?: e.javaClass.simpleName
             LogUtil.e(AppConfig.TAG, "StartCore-Manager: $message", e)
             MessageHelper.sendMsg2UI(service, AppConfig.MSG_STATE_START_FAILURE, message)
@@ -181,6 +183,7 @@ object CoreServiceManager {
             MessageHelper.sendMsg2UI(service, AppConfig.MSG_STATE_START_SUCCESS, "")
         }
         NotificationManager.startSpeedNotification()
+        ZentRuntimeEvents.record(service, "XRAY_CORE_STARTED")
         LogUtil.i(AppConfig.TAG, "StartCore-Manager: Core started successfully")
     }
 

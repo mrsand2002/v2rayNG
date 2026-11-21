@@ -1,0 +1,52 @@
+name: Publish Zent Plus v2.4 Diagnostics Prerelease
+
+on:
+  push:
+    branches:
+      - feature/zent-diagnostic-apk
+    paths:
+      - '.github/workflows/zent-v24-publish-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download previously verified signed diagnostic APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p verified
+          gh run download 44882269727 --repo "${{ github.repository }}" \
+            --name zent-plus-v24-diagnostics-release-apk --dir verified
+          test -s verified/ZentPlus-2.4.0-diagnostics-arm64-release.apk
+      - name: Publish test prerelease (not latest stable)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > release-notes.md <<'NOTES'
+          ## Zent Plus v2.4.0 — Diagnostic test release
+
+          This **prerelease** helps troubleshoot the issue where Android says VPN Connected while websites and messaging have no internet.
+
+          - Adds in-app **Diagnostics** page: Run Diagnostics and Copy Report.
+          - Checks Android VPN visibility, DNS and HTTPS reachability.
+          - Adds TUN startup-error handling to avoid silently claiming a working forwarding path.
+          - Signed with the existing Zent Plus release key, Android package com.zentplus.vpn.
+          - No changes to the VLESS server, Railway backend, or customer database.
+
+          **How to test:** Download the APK asset below (do not confuse it with GitHub workflow ZIP archives), install as an update without uninstalling Zent Plus, then connect and open **Menu → Diagnostics → Run Diagnostics → Copy Report**.
+
+          Some probes may be inconclusive on Android when the VPN app cannot route its own traffic through its VPN. A phone test is required before this becomes a regular customer release.
+          NOTES
+          gh release create v2.4.0-diagnostics \
+            verified/ZentPlus-2.4.0-diagnostics-arm64-release.apk \
+            --repo "${{ github.repository }}" \
+            --target 049d6c0809ea5dc7d8a91fe2c708ddf6601080f5 \
+            --title "Zent Plus v2.4.0 — Diagnostics (Test)" \
+            --notes-file release-notes.md \
+            --prerelease

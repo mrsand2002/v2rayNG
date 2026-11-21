@@ -7,6 +7,7 @@ import com.v2ray.ang.contracts.Tun2SocksControl
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.util.LogUtil
+import com.v2ray.ang.util.ZentRuntimeEvents
 import java.io.File
 
 /**
@@ -54,10 +55,20 @@ class TProxyService(
         LogUtil.d(AppConfig.TAG, "HevSocks5Tunnel Config content:\n$configContent")
 
         try {
-//            LogUtil.i(AppConfig.TAG, "TProxyStartService...")
-            TProxyStartService(configFile.absolutePath, vpnInterface.fd)
+            ZentRuntimeEvents.record(context, "HEV_TUN_START_ATTEMPT")
+            val started = TProxyStartService(configFile.absolutePath, vpnInterface.fd)
+            if (!started) {
+                ZentRuntimeEvents.record(context, "HEV_TUN_RETURNED_FALSE")
+                throw IllegalStateException("HEV TUN native startup returned false")
+            }
+            ZentRuntimeEvents.record(context, "HEV_TUN_STARTED")
+            LogUtil.i(AppConfig.TAG, "StartCore-VPN: HEV TUN forwarding started")
         } catch (e: Exception) {
-            LogUtil.e(AppConfig.TAG, "HevSocks5Tunnel exception: ${e.message}")
+            // Never silently swallow the failed native startup: VPN routing would
+            // be active but no packets would reach the Xray SOCKS listener.
+            ZentRuntimeEvents.record(context, "HEV_TUN_EXCEPTION")
+            LogUtil.e(AppConfig.TAG, "StartCore-VPN: HEV TUN forwarding failed: ${e.message}", e)
+            throw e
         }
     }
 
