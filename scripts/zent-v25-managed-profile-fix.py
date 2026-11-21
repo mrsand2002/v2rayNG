@@ -29,7 +29,7 @@ new = '''            onApplyProfile = { uri ->
                     }.getOrNull()
                     if (expected == null || expected.server.isNullOrBlank() ||
                         expected.password.isNullOrBlank() ||
-                        expected.serverPort?.toIntOrNull() !in 1..65535
+                        (expected.serverPort?.toIntOrNull() ?: 0) !in 1..65535
                     ) {
                         null
                     } else {
