@@ -18,9 +18,8 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: mrsand2002/v2rayNG
     steps:
-      - name: Wait for version 2.8.2 signed APK verification
+      - name: Verify successfully completed signed APK build
         run: |
-          gh run watch 44929241473 --repo "$GH_REPO" --exit-status
           gh run view 44929241473 --repo "$GH_REPO" --json conclusion,headSha \
             --jq 'select(.conclusion=="success" and .headSha=="e7fa3d01ff22c6887a3ed92ae8bd0800897d6b72") | .headSha' \
             | grep -Fx e7fa3d01ff22c6887a3ed92ae8bd0800897d6b72
