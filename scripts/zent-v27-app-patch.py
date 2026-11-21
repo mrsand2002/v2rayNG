@@ -109,7 +109,7 @@ effect = '''    // Best-effort persistent traffic accounting. Per-installation c
             while (isActive) {
                 if (statsAvailable) {
                     val current = runCatching {
-                        usageTracker.sample(activeUsername, isRunning, sessionRx, sessionTx)
+                        usageTracker.sample(activeUsername, isRunning)
                     }.getOrNull()
                     if (current != null) {
                         val sent = runCatching {
