@@ -14,11 +14,19 @@ import javax.net.ssl.SSLSocketFactory
  * VPN-owner network probing. Never includes the profile URI or credentials in a report.
  */
 internal object ZentSocksProbe {
-    private const val HOST = "www.gstatic.com"
     private const val PORT = 443
 
-    fun run(socksPort: Int, username: String?, password: String?): List<String> {
+    fun run(socksPort: Int, username: String?, password: String?): List<String> =
+        runOne(socksPort, username, password, "www.gstatic.com", true) +
+        runOne(socksPort, username, password, "example.com", true) +
+        runOne(socksPort, username, password, "example.com", false)
+
+    private fun runOne(
+        socksPort: Int, username: String?, password: String?,
+        host: String, https: Boolean
+    ): List<String> {
         val lines = mutableListOf<String>()
+        lines.add("Target: " + host + if (https) " HTTPS" else " HTTP")
         var stage = "LOCAL_SOCKS_CONNECTION"
         try {
             Socket().use { socket ->
@@ -75,11 +83,11 @@ internal object ZentSocksProbe {
                 lines.add("SOCKS5 handshake: OK")
 
                 stage = "SOCKS5_REMOTE_CONNECT"
-                val domain = HOST.toByteArray(Charsets.US_ASCII)
+                val domain = host.toByteArray(Charsets.US_ASCII)
                 output.write(byteArrayOf(5, 1, 0, 3))
                 output.writeByte(domain.size)
                 output.write(domain)
-                output.writeShort(PORT)
+                output.writeShort(if (https) PORT else 80)
                 output.flush()
 
                 val replyVersion = input.readUnsignedByte()
@@ -100,9 +108,26 @@ internal object ZentSocksProbe {
                 input.readUnsignedShort() // bound port
                 lines.add("SOCKS5 remote TCP: CONNECTED")
 
+                if (!https) {
+                    stage = "HTTP_PLAIN_RESPONSE"
+                    output.write(
+                        ("GET / HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\n\r\n")
+                            .toByteArray(Charsets.US_ASCII)
+                    )
+                    output.flush()
+                    val status = BufferedReader(
+                        InputStreamReader(input, Charsets.US_ASCII)
+                    ).readLine()
+                    val code = status?.split(" ")?.getOrNull(1)?.toIntOrNull()
+                    lines.add(if (code != null && code in 200..399)
+                        "SOCKS5 plain HTTP: SUCCESS (HTTP $code)" else
+                        "SOCKS5 plain HTTP: FAILED / UNEXPECTED RESPONSE")
+                    return@use
+                }
+
                 stage = "HTTPS_TLS_HANDSHAKE"
                 val factory = SSLSocketFactory.getDefault() as SSLSocketFactory
-                val tls = factory.createSocket(socket, HOST, PORT, false) as SSLSocket
+                val tls = factory.createSocket(socket, host, PORT, false) as SSLSocket
                 tls.use {
                     it.soTimeout = 6500
                     val params = it.sslParameters
@@ -113,7 +138,7 @@ internal object ZentSocksProbe {
 
                     stage = "HTTPS_HTTP_RESPONSE"
                     it.outputStream.write(
-                        ("GET /generate_204 HTTP/1.1\r\nHost: $HOST\r\nConnection: close\r\n\r\n")
+                        ("GET " + (if (host == "www.gstatic.com") "/generate_204" else "/") + " HTTP/1.1\r\nHost: $host\r\nConnection: close\r\n\r\n")
                             .toByteArray(Charsets.US_ASCII)
                     )
                     it.outputStream.flush()
@@ -130,6 +155,23 @@ internal object ZentSocksProbe {
             }
         } catch (e: Exception) {
             lines.add("SOCKS5 probe: FAILED at $stage (" + e.javaClass.simpleName + ")")
+            val chain = generateSequence<Throwable>(e) { it.cause }.take(5).toList()
+            val messages = chain.mapNotNull { it.message?.lowercase() }.joinToString(" ")
+            val classification = when {
+                "certificate" in messages || "certpath" in messages ||
+                    "trust anchor" in messages || "pkix" in messages -> "TLS_CERTIFICATE_VALIDATION"
+                "handshake_failure" in messages || "protocol_version" in messages ->
+                    "TLS_PROTOCOL_OR_CIPHER"
+                "reset" in messages || "broken pipe" in messages -> "TCP_RESET"
+                "closed by peer" in messages || "terminated" in messages ||
+                    "eof" in messages -> "PEER_CLOSED_CONNECTION"
+                chain.any { it is java.net.SocketTimeoutException } || "timed out" in messages ->
+                    "NETWORK_TIMEOUT"
+                else -> "UNCLASSIFIED"
+            }
+            lines.add("SOCKS5 failure category: " + classification)
+            lines.add("SOCKS5 exception chain: " +
+                chain.map { it.javaClass.simpleName }.joinToString(" > "))
         }
         return lines
     }
