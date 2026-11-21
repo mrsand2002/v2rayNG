@@ -138,6 +138,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: zent-plus-v241-runtime-diagnostics-release-apk
-          path: artifacts/ZentPlus-2.4.0-diagnostics-arm64-release.apk
+          path: artifacts/ZentPlus-2.4.1-runtime-diagnostics-arm64-release.apk
           if-no-files-found: error
           retention-days: 14
