@@ -41,6 +41,7 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun ZentAnnouncementPopup(context: Context, token: String) {
     var notices by remember(token) { mutableStateOf<List<ZentAnnouncement>>(emptyList()) }
+    var popupShown by remember(token) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(token) {
         if (token.isBlank()) {
@@ -52,9 +53,10 @@ internal fun ZentAnnouncementPopup(context: Context, token: String) {
             delay(60_000L)
         }
     }
-    val pending = notices.firstOrNull { it.readAt == null }
+    val pending = if (popupShown) null else notices.firstOrNull { it.readAt == null }
     if (token.isNotBlank() && pending != null) {
         fun dismiss() {
+            popupShown = true
             notices = notices.map { if (it.id == pending.id) it.copy(readAt = System.currentTimeMillis() / 1000) else it }
             scope.launch {
                 runCatching { ZentApi.markAnnouncementRead(context, token, pending.id) }
