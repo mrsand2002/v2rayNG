@@ -72,4 +72,9 @@ src_path.write_text(src, encoding="utf-8")
 dest=Path("V2rayNG/app/src/main/java/com/v2ray/ang/ui/main")
 dest.mkdir(parents=True,exist_ok=True)
 (dest/"ZentDiagnostics.kt").write_text(Path("scripts/zent-diagnostics/ZentDiagnostics.kt").read_text(encoding="utf-8"),encoding="utf-8")
-print("Zent Plus v2.4 Diagnostics UI patch ready.")
+util = Path("V2rayNG/app/src/main/java/com/v2ray/ang/util")
+util.mkdir(parents=True, exist_ok=True)
+(util/"ZentRuntimeEvents.kt").write_text(
+    Path("scripts/zent-diagnostics/ZentRuntimeEvents.kt").read_text(encoding="utf-8"), encoding="utf-8"
+)
+print("Zent Plus v2.4 Diagnostics UI and runtime logging ready.")
