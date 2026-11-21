@@ -37,8 +37,9 @@ internal class ZentUsageTracker(context: Context) {
     fun sample(username: String, connected: Boolean, rx: Long, tx: Long): ZentUsageSample {
         require(username.matches(Regex("^[A-Za-z0-9_.-]{3,40}$")))
         val key = "account_" + username.lowercase() + "_"
-        var epoch = prefs.getString(key + "epoch", null)
-        if (epoch.isNullOrBlank()) epoch = UUID.randomUUID().toString().replace("-", "")
+        val epoch = prefs.getString(key + "epoch", null)
+            .takeUnless { it.isNullOrBlank() }
+            ?: UUID.randomUUID().toString().replace("-", "")
         val previousOwner = prefs.getString("last_active_user", null)
         val lastActive = prefs.getBoolean("last_active", false) && previousOwner == username
         val lastRx = prefs.getLong(key + "last_rx", 0)
