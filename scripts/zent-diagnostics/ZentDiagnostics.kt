@@ -51,6 +51,16 @@ internal object ZentDiagnostics {
                     line("Local SOCKS listener: CLOSED OR UNREACHABLE (" + e.javaClass.simpleName + ")")
                 }
             }
+            line("Xray SOCKS5 outbound HTTPS probe (not routed through Android VPN):")
+            if (MmkvManager.decodeSettingsBool(AppConfig.PREF_DYNAMIC_SOCKS_PORT, false)) {
+                line("SOCKS5 outbound: INCONCLUSIVE (dynamic port is process-local)")
+            } else {
+                ZentSocksProbe.run(
+                    SettingsManager.getSocksPort(),
+                    SettingsManager.getSocksUsername(),
+                    SettingsManager.getSocksPassword()
+                ).forEach { line(it) }
+            }
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             if (cm == null) {
                 line("Connectivity service: UNAVAILABLE")
