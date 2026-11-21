@@ -1,0 +1,37 @@
+name: Attach Zent Plus v2.3 APK to existing release
+
+on:
+  push:
+    paths:
+      - '.github/workflows/zent-v23-attach-release.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: mrsand2002/v2rayNG
+    steps:
+      - name: Download signed APK from verified v2.3 build
+        run: |
+          gh run download 44869067139 --repo "$GH_REPO" \
+            --name zent-plus-v23-release-apk --dir "$RUNNER_TEMP/zent-apk"
+          APK="$RUNNER_TEMP/zent-apk/ZentPlus-2.3.0-arm64-release.apk"
+          test -s "$APK" || { echo 'Expected release APK not found' >&2; exit 1; }
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
+
+      - name: Attach existing build to published v2.3.0 release
+        run: |
+          gh release view v2.3.0 --repo "$GH_REPO"
+          gh release upload v2.3.0 "$APK_PATH" --repo "$GH_REPO" --clobber
+
+      - name: Confirm public release APK is available
+        run: |
+          gh release view v2.3.0 --repo "$GH_REPO" --json assets \
+            --jq '.assets[].name' | grep -Fx 'ZentPlus-2.3.0-arm64-release.apk'
