@@ -115,7 +115,8 @@ jobs:
           test -n "$APK" && test -s "$APK"
           "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$APK" | tee /tmp/zent-badging.txt
           grep 'package: name=' /tmp/zent-badging.txt | grep -q 'com.zentplus.vpn'
-          grep 'package: name=' /tmp/zent-badging.txt | grep -q "versionCode='764'"
+          # ABI-specific ARM64 split APKs encode the base version code 764 as 4000764.
+          grep 'package: name=' /tmp/zent-badging.txt | grep -q "versionCode='4000764'"
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$APK"
           mkdir -p artifacts
           cp "$APK" artifacts/ZentPlus-2.3.0-arm64-release.apk
