@@ -98,7 +98,16 @@ replace_one('''        } else {
 
 # User-triggered connect/disconnect must start fresh even if the service's
 # transient state update isn't observed before the Activity is recreated.
-replace_one("onStartVpn()", "ZentSessionClock.reset(context); onStartVpn()",
+replace_one('''                    connecting = true
+                    onStartVpn()
+                }''',
+            '''                    connecting = true
+                    ZentSessionClock.reset(context)
+                    onStartVpn()
+                }''',
+            "reconnect after assigned profile update")
+replace_one('''try { onStartVpn() } catch (ex: Exception)''',
+            '''try { ZentSessionClock.reset(context); onStartVpn() } catch (ex: Exception)''',
             "user-initiated VPN connect")
 replace_one('''isRunning -> { onStopVpn(); notify("VPN disconnected") }''',
             '''isRunning -> { ZentSessionClock.reset(context); onStopVpn(); notify("VPN disconnected") }''',
