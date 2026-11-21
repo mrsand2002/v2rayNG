@@ -15,7 +15,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Apply offline patch to v2.3 packaged source
         run: |
-          unzip -oq zent-v23-overlay.zip -d .
+          unzip -oq zent-v22-overlay.zip -d .
+          python3 scripts/zent-v23-ui-patch.py
           python3 -m py_compile scripts/zent-v24-offline-patch.py
           python3 scripts/zent-v24-offline-patch.py
           python3 - <<'PY'
