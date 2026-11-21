@@ -12,6 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Inspect generated Compose layout (non-secret identifiers only)
+        env:
+          ZENT_API_URL: https://zent-plus-backend-production.up.railway.app
+          ZENT_VERSION_NAME: '2.8.0'
+          ZENT_VERSION_CODE: '782'
         run: |
           unzip -oq zent-v22-overlay.zip -d .
           python3 scripts/zent-v23-ui-patch.py
