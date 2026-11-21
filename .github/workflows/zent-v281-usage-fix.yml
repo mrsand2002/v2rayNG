@@ -90,6 +90,8 @@ jobs:
           assert 'usageLastSyncMs = System.currentTimeMillis()' in ui
           assert 'Device-estimated usage recorded since v2.7' not in ui
           assert 'ZentSessionClock.reset(context); onStartVpn()' in ui
+          assert 'hasSeenRunning' in ui
+          assert 'usageSyncError = "Device counter read failed"' in ui
           assert (base / 'ui/main/ZentSessionClock.kt').exists()
           assert (base / 'ui/main/ZentAnnouncementsUi.kt').exists()
           anno = (base / 'ui/main/ZentAnnouncementsUi.kt').read_text(encoding='utf-8')
