@@ -1,0 +1,129 @@
+name: Zent Plus v2.1 — Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: 'Railway HTTPS backend origin (no /admin)'
+        required: true
+        default: 'https://zent-plus-backend-production.up.railway.app'
+        type: string
+      build_mode:
+        description: 'debug for testing; release for customer distribution (requires signing secrets)'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+      version_name:
+        description: 'App version, e.g. 2.0.0'
+        required: true
+        default: '2.1.0'
+        type: string
+      version_code:
+        description: 'Increase for each release, starting with 762'
+        required: true
+        default: '762'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout source and native submodules
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Apply the Zent Plus v2.1 overlay
+        env:
+          ZENT_API_URL: ${{ inputs.api_url }}
+          ZENT_VERSION_NAME: ${{ inputs.version_name }}
+          ZENT_VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          test -f zent-v21-overlay.zip
+          unzip -oq zent-v21-overlay.zip -d .
+          python3 -m py_compile zent/github/apply_zent.py
+          python3 zent/github/apply_zent.py
+          grep -q 'applicationId = "com.zentplus.vpn"' V2rayNG/app/build.gradle.kts
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          log-accepted-android-sdk-licenses: false
+          cmdline-tools-version: '14742923'
+          packages: 'platforms;android-37.0 build-tools;37.0.0 platform-tools'
+      - name: Install NDK
+        run: |
+          echo y | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=0 --install 'ndk;30.0.16248370'
+          echo "NDK_HOME=$ANDROID_HOME/ndk/30.0.16248370" >> "$GITHUB_ENV"
+          sed -i '/compileSdk = 37/a\ ndkVersion = "30.0.16248370"' V2rayNG/app/build.gradle.kts
+      - name: Build Android tun library
+        run: |
+          bash compile-hevtun.sh
+          cp -r libs V2rayNG/app/
+      - name: Determine native Xray release
+        run: |
+          cd AndroidLibXrayLite
+          echo "CURRENT_TAG=$(git describe --tags --abbrev=0)" >> "$GITHUB_ENV"
+      - name: Download Xray library
+        uses: robinraju/release-downloader@v1.13
+        with:
+          repository: 2dust/AndroidLibXrayLite
+          tag: ${{ env.CURRENT_TAG }}
+          fileName: libv2ray.aar
+          out-file-path: V2rayNG/app/libs/
+      - name: Set up Java
+        uses: actions/setup-java@v6.3.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Prepare permanent release signing key
+        if: inputs.build_mode == 'release'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ZENT_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.ZENT_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ZENT_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ZENT_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || {
+            echo 'Release requires all four signing secrets. See README.' >&2
+            exit 1
+          }
+          mkdir -p "$RUNNER_TEMP/zent-signing"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/zent-signing/release.jks"
+          echo "ZENT_KEYSTORE_FILE=$RUNNER_TEMP/zent-signing/release.jks" >> "$GITHUB_ENV"
+          echo "ZENT_KEYSTORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ZENT_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ZENT_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+      - name: Compile Zent Plus APK
+        working-directory: V2rayNG
+        env:
+          GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx3g'
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+          if [ '${{ inputs.build_mode }}' = 'release' ]; then
+            ./gradlew :app:assemblePlaystoreRelease '-PABI_FILTERS=arm64-v8a' --no-daemon
+          else
+            ./gradlew :app:assemblePlaystoreDebug '-PABI_FILTERS=arm64-v8a' --no-daemon
+          fi
+      - name: Verify APK package and signature
+        run: |
+          APK="$(find V2rayNG/app/build/outputs/apk -name '*arm64-v8a*.apk' -type f | head -1)"
+          test -n "$APK" && test -s "$APK"
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$APK" | grep 'package: name=' | grep -q "com.zentplus.vpn"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "$APK"
+          mkdir -p artifacts
+          cp "$APK" "artifacts/ZentPlus-${{ inputs.version_name }}-arm64-${{ inputs.build_mode }}.apk"
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: zent-plus-v21-${{ inputs.build_mode }}-apk
+          path: artifacts/*.apk
+          if-no-files-found: error
+          retention-days: 14
