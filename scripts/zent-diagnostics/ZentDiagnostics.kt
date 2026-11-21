@@ -61,6 +61,8 @@ internal object ZentDiagnostics {
                     SettingsManager.getSocksPassword()
                 ).forEach { line(it) }
             }
+            line("Xray native-core error categories (recent device logs):")
+            ZentCoreErrors.summarize().forEach { line(it) }
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             if (cm == null) {
                 line("Connectivity service: UNAVAILABLE")
