@@ -43,7 +43,7 @@ insert='''                        "Diagnostics" -> {
                                         try {
                                             diagnosticReport = ZentDiagnostics.run(context, isRunning, hasLocalProfile)
                                         } catch (ex: Exception) {
-                                            diagnosticReport = "Diagnostics unavailable: \${ex.javaClass.simpleName}"
+                                            diagnosticReport = "Diagnostics unavailable: ${ex.javaClass.simpleName}"
                                         } finally { diagnosticBusy = false }
                                     }
                                 },
@@ -66,7 +66,7 @@ insert='''                        "Diagnostics" -> {
                         "Settings" -> {
                             PageHeader("Settings") { page = "Home" }'''
 # Fix literal Kotlin interpolation placeholder in our Python triple-quoted source.
-insert=insert.replace("\\\${ex.javaClass.simpleName}", "${ex.javaClass.simpleName}")
+insert=insert.replace("\\${ex.javaClass.simpleName}", "${ex.javaClass.simpleName}")
 replace_once(needle,insert,"diagnostic screen")
 src_path.write_text(src, encoding="utf-8")
 dest=Path("V2rayNG/app/src/main/java/com/v2ray/ang/ui/main")
