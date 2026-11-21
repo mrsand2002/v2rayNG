@@ -26,7 +26,7 @@ jobs:
         env:
           ZENT_API_URL: https://zent-plus-backend-production.up.railway.app
           ZENT_VERSION_NAME: '2.8.0'
-          ZENT_VERSION_CODE: '782'
+          ZENT_VERSION_CODE: '783'
         run: |
           test -s zent-v22-overlay.zip
           unzip -oq zent-v22-overlay.zip -d .
@@ -84,6 +84,13 @@ jobs:
           assert 'ZentApi.resetUsage(context, token)' in ui
           assert '"Announcements" -> {' in ui
           assert (base / 'ui/main/ZentAnnouncementsUi.kt').exists()
+          anno = (base / 'ui/main/ZentAnnouncementsUi.kt').read_text(encoding='utf-8')
+          assert 'var popupShown by remember(token)' in anno
+          assert 'val pending = if (popupShown)' in anno
+          assert 'if (json.isNull("image_base64")) null' in api
+          assert 'InfoCard("All time — Download"' not in ui
+          assert 'InfoCard("This VPN session — Total"' in ui.split('"Data Usage" -> {')[0] or 'This VPN session' not in ui
+
           assert (base / 'ui/main/ZentUsageTracker.kt').exists()
           tracker = (base / 'ui/main/ZentUsageTracker.kt').read_text(encoding='utf-8')
           assert 'Settings.Secure.ANDROID_ID' in tracker
@@ -93,7 +100,7 @@ jobs:
           assert 'usageTracker.sample(activeUsername, isRunning)' in ui
           assert 'usageTracker.sample(activeUsername, isRunning, sessionRx, sessionTx)' not in ui
           assert 'applicationId = "com.zentplus.vpn"' in gradle
-          assert 'versionCode = 782' in gradle
+          assert 'versionCode = 783' in gradle
           assert 'versionName = "2.8.0"' in gradle
           print('ZENT PLUS v2.8 feature preflight passed: no diagnostics; TLS/SNI + device and usage APIs')
           PYVERIFY
@@ -168,8 +175,8 @@ jobs:
           test -n "$APK" && test -s "$APK"
           "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$APK" | tee /tmp/zent-badging.txt
           grep 'package: name=' /tmp/zent-badging.txt | grep -q 'com.zentplus.vpn'
-          # ABI-specific ARM64 split APKs encode base version code 772 as 4000782.
-          grep 'package: name=' /tmp/zent-badging.txt | grep -q "versionCode='4000782'"
+          # ABI-specific ARM64 split APKs encode base version code 772 as 4000783.
+          grep 'package: name=' /tmp/zent-badging.txt | grep -q "versionCode='4000783'"
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$APK"
           mkdir -p artifacts
           cp "$APK" artifacts/ZentPlus-2.8.0-announcements-test-arm64-release.apk
