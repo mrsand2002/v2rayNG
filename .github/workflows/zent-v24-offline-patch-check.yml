@@ -1,0 +1,34 @@
+name: Verify Zent Plus Offline-First Patch
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-offline-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply offline patch to v2.3 packaged source
+        run: |
+          unzip -oq zent-v23-overlay.zip -d .
+          python3 -m py_compile scripts/zent-v24-offline-patch.py
+          python3 scripts/zent-v24-offline-patch.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path("zent/android/ZentManagedScreen.kt").read_text()
+          for marker in (
+              "cached_username", "cached_expiry_seconds", "rememberUpdatedState(isRunning)",
+              "if (vpnIsRunning) syncProfile(token)", "if (restoredToken.isBlank()",
+              "if (token.isNotBlank() && (!profileReady || !hasLocalProfile || account == null))",
+          ):
+              assert marker in s, marker
+          assert "delay(120_000)" not in s, "Old 2-minute background sync remains"
+          assert "ZentSessionVault(context)" in s
+          assert "Server Managed By Mr.මල" in s
+          print("Offline-first source checks passed")
+          PY
