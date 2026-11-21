@@ -5,9 +5,15 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.Build
+import com.v2ray.ang.AppConfig
+import com.v2ray.ang.handler.MmkvManager
+import com.v2ray.ang.handler.SettingsManager
+import com.v2ray.ang.util.ZentRuntimeEvents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -31,6 +37,20 @@ internal object ZentDiagnostics {
             line("Managed profile present: ${if (hasProfile) "Yes" else "No"}")
             line("Note: Android VPN active does not guarantee working internet.")
             line("Note: App upload/download counters do not verify tunnel traffic.")
+            line("VPN runtime events (Unix millisecond timestamps; newest last):")
+            ZentRuntimeEvents.snapshot(context).lineSequence().forEach { line(it) }
+            if (MmkvManager.decodeSettingsBool(AppConfig.PREF_DYNAMIC_SOCKS_PORT, false)) {
+                line("Local SOCKS listener: INCONCLUSIVE (dynamic port is managed by another process)")
+            } else {
+                try {
+                    Socket().use { socket ->
+                        socket.connect(InetSocketAddress("127.0.0.1", SettingsManager.getSocksPort()), 1200)
+                    }
+                    line("Local SOCKS listener: TCP PORT OPEN (not proof of server access)")
+                } catch (e: Exception) {
+                    line("Local SOCKS listener: CLOSED OR UNREACHABLE (" + e.javaClass.simpleName + ")")
+                }
+            }
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             if (cm == null) {
                 line("Connectivity service: UNAVAILABLE")
