@@ -1,0 +1,68 @@
+name: Publish Zent Plus v2.8.1 release
+
+on:
+  push:
+    branches: ['feature/zent-v281-session-usage']
+    paths: ['.github/workflows/zent-v281-publish-release.yml']
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: mrsand2002/v2rayNG
+    steps:
+      - name: Verify the exact successful signed APK build
+        run: |
+          gh run view 44920418886 --repo "$GH_REPO" --json conclusion,headSha \
+            --jq 'select(.conclusion=="success" and .headSha=="4b7ea01657f94dbd00f50f70be7bffbc870694de") | .headSha' \
+            | grep -Fx '4b7ea01657f94dbd00f50f70be7bffbc870694de'
+          mkdir -p "$RUNNER_TEMP/zent-release"
+          gh run download 44920418886 --repo "$GH_REPO" \
+            --name zent-plus-v281-session-usage-arm64-apk --dir "$RUNNER_TEMP/zent-release"
+          APK="$RUNNER_TEMP/zent-release/ZentPlus-2.8.1-session-usage-arm64-release.apk"
+          test -s "$APK"
+          unzip -t "$APK" > /dev/null
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
+          sha256sum "$APK"
+
+      - name: Publish APK as GitHub Release v2.8.1
+        run: |
+          if gh release view v2.8.1 --repo "$GH_REPO" > /dev/null 2>&1; then
+            echo "v2.8.1 already exists; refusing to overwrite its existing APK" >&2
+            exit 1
+          fi
+          cat > "$RUNNER_TEMP/zent-release-notes.md" <<'NOTES'
+          ## Zent Plus 2.8.1 — Session Timer & Usage Sync
+
+          This signed ARM64 Android update includes:
+
+          - **Persistent VPN session timer**: returning from another app no longer starts the on-screen timer from zero merely because Android recreated the interface.
+          - **Device usage synchronization**: estimated usage is sent to the Zent Plus management backend about every 30 seconds while the app is active, and the app shows sync success/error state.
+          - **Data Usage**: streamlined All-Time, Today, This Month, and Reset Usage controls.
+          - **Admin dashboard**: compatible backend now supports app-estimated customer traffic and the last successful sync time.
+          - **Cleaner menu**: customer-facing Announcements tab and obsolete usage disclaimer removed, while one-time in-app popup announcements remain supported.
+          - Existing VLESS profile management, VPN tunnel engine, TLS/SNI security and app login are unchanged.
+
+          **Install**: Download the `.apk` asset below (not a workflow ZIP) and install it over your existing Zent Plus application. Do not uninstall or clear app data. Package: `com.zentplus.vpn`; version `2.8.1`; ARM64.
+
+          **Please verify on a real phone before wider rollout**: connect to the VPN, minimize the app, browse for several minutes, return and confirm the timer remains consistent and the Data Usage page displays a successful sync. The app's usage is a device estimate and not exact 3X-UI server traffic; real 3X-UI online/usage reporting requires separate backend integration.
+          NOTES
+          gh release create v2.8.1 "$APK_PATH" \
+            --repo "$GH_REPO" \
+            --target 4b7ea01657f94dbd00f50f70be7bffbc870694de \
+            --title 'Zent Plus v2.8.1 — Session Timer & Usage Sync' \
+            --notes-file "$RUNNER_TEMP/zent-release-notes.md"
+
+      - name: Verify release asset and latest stable release
+        run: |
+          gh release view v2.8.1 --repo "$GH_REPO" --json isDraft,isPrerelease,assets \
+            --jq 'select(.isDraft==false and .isPrerelease==false) | .assets[].name' \
+            | grep -Fx 'ZentPlus-2.8.1-session-usage-arm64-release.apk'
+          gh api "repos/$GH_REPO/releases/latest" --jq '.tag_name' | grep -Fx v2.8.1

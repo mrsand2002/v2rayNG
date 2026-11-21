@@ -1,0 +1,201 @@
+name: Zent Plus v2.8.1 — Session Timer & Usage Sync Signed APK
+
+on:
+  push:
+    branches:
+      - 'feature/zent-v281-session-usage'
+    paths:
+      - '.github/workflows/zent-v281-usage-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout source and native submodules
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Prepare Zent Plus 2.8.1 session timer and reliable usage UI
+        env:
+          ZENT_API_URL: https://zent-plus-backend-production.up.railway.app
+          ZENT_VERSION_NAME: '2.8.1'
+          ZENT_VERSION_CODE: '784'
+        run: |
+          test -s zent-v22-overlay.zip
+          unzip -oq zent-v22-overlay.zip -d .
+          python3 -m py_compile scripts/zent-v23-ui-patch.py scripts/zent-v25-managed-profile-fix.py scripts/zent-v26-clean-release.py scripts/zent-v27-app-patch.py scripts/zent-v28-app-patch.py scripts/zent-v281-app-patch.py zent/github/apply_zent.py
+          python3 scripts/zent-v23-ui-patch.py
+          python3 scripts/zent-v25-managed-profile-fix.py
+          python3 zent/github/apply_zent.py
+          python3 scripts/zent-v26-clean-release.py
+          python3 scripts/zent-v27-app-patch.py
+          python3 scripts/zent-v28-app-patch.py
+          python3 scripts/zent-v281-app-patch.py
+          python3 - <<'PYVERIFY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          base = Path('V2rayNG/app/src/main/java/com/v2ray/ang')
+          ui = (base / 'ui/main/ZentManagedScreen.kt').read_text(encoding='utf-8')
+          activity = (base / 'ui/main/MainActivity.kt').read_text(encoding='utf-8')
+          gradle = Path('V2rayNG/app/build.gradle.kts').read_text(encoding='utf-8')
+          assert 'Server Managed By Mr.මල' in ui
+          assert 'private fun ZentAppearanceCard(' in ui
+          assert 'zent-managed-v4:' in ui
+          assert 'RadioButton(selected = appearanceMode' not in ui
+          assert '"Diagnostics" -> {' not in ui
+          assert '"Data Usage", "Diagnostics"' not in ui
+          assert 'ZentDiagnostics' not in ui
+          assert not (base / 'ui/main/ZentDiagnostics.kt').exists()
+          assert not (base / 'ui/main/ZentSocksProbe.kt').exists()
+          assert not (base / 'ui/main/ZentCoreErrors.kt').exists()
+          assert not (base / 'util/ZentRuntimeEvents.kt').exists()
+          for path in (
+              base / 'service/CoreVpnService.kt',
+              base / 'service/TProxyService.kt',
+              base / 'core/CoreServiceManager.kt',
+          ):
+              assert 'ZentRuntimeEvents' not in path.read_text(encoding='utf-8'), path
+          assert 'actual.password == expected.password' in activity
+          assert 'actual.sni == expected.sni' in activity
+          assert 'actual.alpn == expected.alpn' in activity
+          assert 'assigned.copy(verifyPeerCertByName = assigned.server!!.trim())' in activity
+          assert 'assigned.pinnedCA256.isNullOrBlank()' in activity
+          assert 'PREF_OUTBOUND_DOMAIN_RESOLVE_METHOD, "0"' in activity
+          assert 'allowInsecure = true' not in activity
+          api = (base / 'ui/main/ZentApi.kt').read_text(encoding='utf-8')
+          assert 'X-Zent-Device' in api
+          assert 'device_id' in api
+          assert 'uploadUsage(' in api
+          assert 'ZentApi.login(context, ' in ui
+          assert 'ZentApi.me(context, ' in ui
+          assert 'ZentApi.logout(context, ' in ui
+          assert 'InfoCard("All-Time Usage"' in ui
+          assert 'InfoCard("Today"' in ui
+          assert 'InfoCard("This Month"' in ui
+          assert 'InfoCard("Today (UTC)"' not in ui
+          assert 'ZentAnnouncementPopup(context, token)' in ui
+          assert 'ZentAnnouncementPopup(context, token)' in ui
+          assert 'ZentApi.resetUsage(context, token)' in ui
+          assert '"Announcements" -> {' not in ui
+          assert 'ZentAnnouncementsPage(context, token)' not in ui
+          assert 'ZentSessionClock.resume(context, previousRx, previousTx)' in ui
+          assert 'usageSyncError = "Upload failed — retrying"' in ui
+          assert 'usageLastSyncMs = System.currentTimeMillis()' in ui
+          assert 'Device-estimated usage recorded since v2.7' not in ui
+          assert 'ZentSessionClock.reset(context); onStartVpn()' in ui
+          assert 'hasSeenRunning' in ui
+          assert 'usageSyncError = "Device counter read failed"' in ui
+          assert (base / 'ui/main/ZentSessionClock.kt').exists()
+          assert (base / 'ui/main/ZentAnnouncementsUi.kt').exists()
+          anno = (base / 'ui/main/ZentAnnouncementsUi.kt').read_text(encoding='utf-8')
+          assert 'var popupShown by remember(token)' in anno
+          assert 'val pending = if (popupShown)' in anno
+          assert 'if (json.isNull("image_base64")) null' in api
+          assert 'InfoCard("All time — Download"' not in ui
+          assert 'InfoCard("This VPN session — Total"' in ui.split('"Data Usage" -> {')[0] or 'This VPN session' not in ui
+
+          assert (base / 'ui/main/ZentUsageTracker.kt').exists()
+          tracker = (base / 'ui/main/ZentUsageTracker.kt').read_text(encoding='utf-8')
+          assert 'Settings.Secure.ANDROID_ID' in tracker
+          assert 'UUID.randomUUID()' in tracker
+          assert 'TrafficStats.getUidRxBytes' in tracker
+          assert 'TrafficStats.getUidTxBytes' in tracker
+          assert 'usageTracker.sample(activeUsername, isRunning)' in ui
+          assert 'usageTracker.sample(activeUsername, isRunning, sessionRx, sessionTx)' not in ui
+          assert 'applicationId = "com.zentplus.vpn"' in gradle
+          assert 'versionCode = 784' in gradle
+          assert 'versionName = "2.8.1"' in gradle
+          print('ZENT PLUS v2.8.1 preflight: original TLS/SNI preserved; persistent session/usage + popups; menu cleaned')
+          PYVERIFY
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          log-accepted-android-sdk-licenses: false
+          cmdline-tools-version: '14742923'
+          packages: 'platforms;android-37.0 build-tools;37.0.0 platform-tools'
+
+      - name: Install NDK
+        run: |
+          echo y | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=0 --install 'ndk;30.0.16248370'
+          echo "NDK_HOME=$ANDROID_HOME/ndk/30.0.16248370" >> "$GITHUB_ENV"
+          sed -i '/compileSdk = 37/a\ ndkVersion = "30.0.16248370"' V2rayNG/app/build.gradle.kts
+
+      - name: Build Android tun library
+        run: |
+          bash compile-hevtun.sh
+          cp -r libs V2rayNG/app/
+
+      - name: Determine native Xray release
+        run: |
+          cd AndroidLibXrayLite
+          echo "CURRENT_TAG=$(git describe --tags --abbrev=0)" >> "$GITHUB_ENV"
+
+      - name: Download Xray library
+        uses: robinraju/release-downloader@v1.13
+        with:
+          repository: 2dust/AndroidLibXrayLite
+          tag: ${{ env.CURRENT_TAG }}
+          fileName: libv2ray.aar
+          out-file-path: V2rayNG/app/libs/
+
+      - name: Set up Java
+        uses: actions/setup-java@v6.3.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Load existing permanent release signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ZENT_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.ZENT_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ZENT_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ZENT_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || {
+            echo 'Release requires the four existing ZENT signing secrets.' >&2
+            exit 1
+          }
+          mkdir -p "$RUNNER_TEMP/zent-signing"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/zent-signing/release.jks"
+          echo "ZENT_KEYSTORE_FILE=$RUNNER_TEMP/zent-signing/release.jks" >> "$GITHUB_ENV"
+          echo "ZENT_KEYSTORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ZENT_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ZENT_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Compile signed release APK
+        working-directory: V2rayNG
+        env:
+          GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx3g'
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+          ./gradlew :app:assemblePlaystoreRelease '-PABI_FILTERS=arm64-v8a' --no-daemon
+
+      - name: Verify package, version and APK signature
+        run: |
+          APK="$(find V2rayNG/app/build/outputs/apk -name '*arm64-v8a*.apk' -type f | head -1)"
+          test -n "$APK" && test -s "$APK"
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$APK" | tee /tmp/zent-badging.txt
+          grep 'package: name=' /tmp/zent-badging.txt | grep -q 'com.zentplus.vpn'
+          # ABI-specific ARM64 splits encode base 784 as 4000784.
+          grep 'package: name=' /tmp/zent-badging.txt | grep -q "versionCode='4000784'"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$APK"
+          mkdir -p artifacts
+          cp "$APK" artifacts/ZentPlus-2.8.1-session-usage-arm64-release.apk
+          test "$(find artifacts -maxdepth 1 -name '*.apk' -type f | wc -l)" -eq 1
+
+      - name: Upload signed update APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: zent-plus-v281-session-usage-arm64-apk
+          path: artifacts/*.apk
+          if-no-files-found: error
+          retention-days: 14
