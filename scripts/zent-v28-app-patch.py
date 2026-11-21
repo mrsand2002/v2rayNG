@@ -53,7 +53,7 @@ internal data class ZentAnnouncement(
             title = json.getString("title"),
             message = json.getString("message"),
             priority = json.optString("priority", "normal"),
-            imageBase64 = json.optString("image_base64", "").takeIf { it.isNotBlank() },
+            imageBase64 = if (json.isNull("image_base64")) null else json.optString("image_base64", "").takeIf { it.isNotBlank() },
             readAt = if (json.isNull("read_at")) null else json.optLong("read_at")
         )
     }
