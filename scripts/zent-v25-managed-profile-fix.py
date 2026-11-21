@@ -53,6 +53,23 @@ new = '''            onApplyProfile = { uri ->
                     }
                 }
                 if (newGuid != null) {
+                    // Keep SNI for domain fronting, but verify the certificate against
+                    // the actual endpoint name if the managed URI supplies no explicit
+                    // verification name or certificate pin. Never disable TLS verification.
+                    val assigned = MmkvManager.decodeServerConfig(newGuid)
+                    if (assigned != null && assigned.security == AppConfig.TLS &&
+                        assigned.verifyPeerCertByName.isNullOrBlank() &&
+                        assigned.pinnedCA256.isNullOrBlank() &&
+                        !assigned.sni.isNullOrBlank() &&
+                        !assigned.server.isNullOrBlank() &&
+                        !assigned.sni.equals(assigned.server, ignoreCase = true) &&
+                        com.v2ray.ang.util.Utils.isDomainName(assigned.server.orEmpty())
+                    ) {
+                        MmkvManager.encodeServerConfig(
+                            newGuid,
+                            assigned.copy(verifyPeerCertByName = assigned.server!!.trim())
+                        )
+                    }
                     // Avoid pinning a dynamic DNS endpoint to a stale pre-resolved IP.
                     // This preserves the actual host and lets the Xray DNS resolver work.
                     MmkvManager.encodeSettings(AppConfig.PREF_OUTBOUND_DOMAIN_RESOLVE_METHOD, "0")
@@ -64,9 +81,9 @@ apply_path.write_text(src, encoding="utf-8")
 screen = Path("zent/android/ZentManagedScreen.kt")
 src = screen.read_text(encoding="utf-8")
 old_marker = 'val marker = "zent-managed-v2:'
-new_marker = 'val marker = "zent-managed-v3:'
+new_marker = 'val marker = "zent-managed-v4:'
 assert src.count(old_marker) == 1, "Unexpected managed profile revision marker"
 src = src.replace(old_marker, new_marker, 1)
 screen.write_text(src, encoding="utf-8")
 
-print("Managed VLESS import now selects exact assigned profile; avoids stale DNS IP pinning.")
+print("Managed VLESS selection, secure certificate verification name, and DNS resolution applied.")
