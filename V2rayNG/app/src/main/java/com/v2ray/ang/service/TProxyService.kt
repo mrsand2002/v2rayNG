@@ -54,10 +54,16 @@ class TProxyService(
         LogUtil.d(AppConfig.TAG, "HevSocks5Tunnel Config content:\n$configContent")
 
         try {
-//            LogUtil.i(AppConfig.TAG, "TProxyStartService...")
-            TProxyStartService(configFile.absolutePath, vpnInterface.fd)
+            val started = TProxyStartService(configFile.absolutePath, vpnInterface.fd)
+            if (!started) {
+                throw IllegalStateException("HEV TUN native startup returned false")
+            }
+            LogUtil.i(AppConfig.TAG, "StartCore-VPN: HEV TUN forwarding started")
         } catch (e: Exception) {
-            LogUtil.e(AppConfig.TAG, "HevSocks5Tunnel exception: ${e.message}")
+            // Never silently swallow the failed native startup: VPN routing would
+            // be active but no packets would reach the Xray SOCKS listener.
+            LogUtil.e(AppConfig.TAG, "StartCore-VPN: HEV TUN forwarding failed: ${e.message}", e)
+            throw e
         }
     }
 
