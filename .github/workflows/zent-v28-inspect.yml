@@ -28,7 +28,7 @@ jobs:
           from pathlib import Path
           p=Path('V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/ZentManagedScreen.kt')
           lines=p.read_text(encoding='utf-8').splitlines()
-          words=('session','Session','Timer','timer','elapsed','Elapsed','seconds','Seconds','startTime','startAt','uptime','duration','Duration','isRunning','statsAvailable','TrafficStats','LaunchedEffect','ZentUsageTracker')
+          words=('session','Session','Timer','timer','elapsed','Elapsed','seconds','Seconds','startTime','startAt','uptime','duration','Duration','isRunning','statsAvailable','TrafficStats','LaunchedEffect','ZentUsageTracker','onStartVpn','onStopVpn')
           matched=set()
           for i,line in enumerate(lines):
               if any(w in line for w in words):matched.update(range(max(0,i-3),min(len(lines),i+7)))
