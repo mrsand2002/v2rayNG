@@ -34,6 +34,19 @@ jobs:
               if any(w in line for w in words):matched.update(range(max(0,i-3),min(len(lines),i+7)))
           print('=== TIMER/UI SOURCE WINDOWS ===')
           for j in sorted(matched): print(str(j+1)+': '+lines[j][:220])
+          print('=== UPDATE CHECKER SOURCE ===')
+          for p in sorted(Path('V2rayNG/app/src/main/java').rglob('*ZentVersion*.kt')):
+              print('FILE',p)
+              for j,ln in enumerate(p.read_text(encoding='utf-8').splitlines()):
+                  print(f'{j+1}: {ln[:230]}')
+          for p in sorted(Path('V2rayNG/app/src/main/java').rglob('*.kt')):
+              if p.name.startswith('Zent'):continue
+              code=p.read_text(encoding='utf-8')
+              if 'ZentVersionCheck' in code or 'releases/latest' in code:
+                  print('REFERENCE FILE',p)
+                  for j,line in enumerate(code.splitlines()):
+                      if 'ZentVersionCheck' in line or 'releases/latest' in line:
+                          print(j+1,line[:230])
           print('=== IMPORTS ===')
           for j,line in enumerate(lines[:100]):
               if line.startswith('import '):print(str(j+1)+': '+line)
