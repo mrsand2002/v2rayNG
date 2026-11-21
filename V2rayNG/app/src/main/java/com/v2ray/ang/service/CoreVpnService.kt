@@ -23,6 +23,7 @@ import com.v2ray.ang.handler.NotificationManager
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.root.RootLanSharing
 import com.v2ray.ang.util.LogUtil
+import com.v2ray.ang.util.ZentRuntimeEvents
 import com.v2ray.ang.util.Utils
 import java.lang.ref.SoftReference
 import java.util.concurrent.atomic.AtomicBoolean
@@ -75,6 +76,7 @@ class CoreVpnService : VpnService(), ServiceControl {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        ZentRuntimeEvents.record(this, "VPN_START_REQUESTED")
         NotificationManager.ensureForeground()
         // Always-on VPN restarts from OS deliver intent.action == SERVICE_INTERFACE or null intent.
         // Reset any stuck start lock left by a killed process to allow setupVpnService() to run.
@@ -107,11 +109,13 @@ class CoreVpnService : VpnService(), ServiceControl {
             return
         }
         if (!CoreServiceManager.startCoreLoop(mInterface)) {
+            ZentRuntimeEvents.record(this, "XRAY_START_FAILED")
             LogUtil.e(AppConfig.TAG, "StartCore-VPN: Failed to start core loop")
             stopAllService()
             return
         }
 
+        ZentRuntimeEvents.record(this, "XRAY_RUNNING_REPORTED")
         // Start LAN sharing if enabled in settings
         RootLanSharing.startClientSharing(this)
     }
@@ -152,6 +156,7 @@ class CoreVpnService : VpnService(), ServiceControl {
         // Android's VPN interface is not sufficient: forwarding must be alive too.
         // Otherwise the VPN icon appears while all application traffic is blackholed.
         if (!runTun2socks()) {
+            ZentRuntimeEvents.record(this, "TUN_START_FAILED")
             LogUtil.e(AppConfig.TAG, "StartCore-VPN: TUN forwarding failed during VPN setup")
             isRunning = false
             try {
@@ -161,6 +166,7 @@ class CoreVpnService : VpnService(), ServiceControl {
             }
             return false
         }
+        ZentRuntimeEvents.record(this, "TUN_START_REPORTED")
         return true
     }
 
@@ -192,6 +198,7 @@ class CoreVpnService : VpnService(), ServiceControl {
         // Create a new interface using the builder and save the parameters
         try {
             mInterface = builder.establish()!!
+            ZentRuntimeEvents.record(this, "VPN_INTERFACE_ESTABLISHED")
             isRunning = true
             return true
         } catch (e: Exception) {
@@ -314,6 +321,7 @@ class CoreVpnService : VpnService(), ServiceControl {
      * Starts the tun2socks process with the appropriate parameters.
      */
     private fun runTun2socks(): Boolean {
+        ZentRuntimeEvents.record(this, if (SettingsManager.isUsingHevTun()) "MODE_HEV_TUN" else "MODE_XRAY_TUN")
         return try {
             if (SettingsManager.isUsingHevTun()) {
                 tun2SocksService = TProxyService(
@@ -333,11 +341,13 @@ class CoreVpnService : VpnService(), ServiceControl {
             tun2SocksService?.startTun2Socks()
             true
         } catch (e: Exception) {
+            ZentRuntimeEvents.record(this, "TUN_EXCEPTION")
             LogUtil.e(AppConfig.TAG, "StartCore-VPN: Failed to start TUN forwarding", e)
             tun2SocksService = null
             false
         } catch (e: LinkageError) {
             // Missing or incompatible JNI library (e.g. wrong CPU ABI).
+            ZentRuntimeEvents.record(this, "TUN_NATIVE_LIBRARY_ERROR")
             LogUtil.e(AppConfig.TAG, "StartCore-VPN: TUN forwarding native library unavailable", e)
             tun2SocksService = null
             false
