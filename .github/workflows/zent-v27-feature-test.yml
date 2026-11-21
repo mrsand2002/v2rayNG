@@ -80,6 +80,10 @@ jobs:
           tracker = (base / 'ui/main/ZentUsageTracker.kt').read_text(encoding='utf-8')
           assert 'Settings.Secure.ANDROID_ID' in tracker
           assert 'UUID.randomUUID()' in tracker
+          assert 'TrafficStats.getUidRxBytes' in tracker
+          assert 'TrafficStats.getUidTxBytes' in tracker
+          assert 'usageTracker.sample(activeUsername, isRunning)' in ui
+          assert 'usageTracker.sample(activeUsername, isRunning, sessionRx, sessionTx)' not in ui
           assert 'applicationId = "com.zentplus.vpn"' in gradle
           assert 'versionCode = 772' in gradle
           assert 'versionName = "2.7.0"' in gradle
