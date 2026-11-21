@@ -1,4 +1,4 @@
-name: Zent Plus v2.4.1 — Runtime Diagnostics Test APK
+name: Zent Plus v2.4.2 — SOCKS Outbound Test APK
 
 on:
   push:
@@ -22,11 +22,11 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Prepare Zent Plus v2.4.1 diagnostics overlay
+      - name: Prepare Zent Plus v2.4.2 SOCKS diagnostics overlay
         env:
           ZENT_API_URL: https://zent-plus-backend-production.up.railway.app
-          ZENT_VERSION_NAME: '2.4.1'
-          ZENT_VERSION_CODE: '766'
+          ZENT_VERSION_NAME: '2.4.2'
+          ZENT_VERSION_CODE: '767'
         run: |
           test -s zent-v22-overlay.zip
           unzip -oq zent-v22-overlay.zip -d .
@@ -42,20 +42,22 @@ jobs:
           assert 'private fun ZentAppearanceCard(' in ui
           assert 'RadioButton(selected = appearanceMode' not in ui
           assert 'applicationId = "com.zentplus.vpn"' in gradle
-          assert 'versionCode = 766' in gradle
-          assert 'versionName = "2.4.1"' in gradle
+          assert 'versionCode = 767' in gradle
+          assert 'versionName = "2.4.2"' in gradle
           assert '"Diagnostics" -> {' in ui
           assert 'ZentDiagnostics.run(context' in ui
           diagnostic = Path('V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/ZentDiagnostics.kt').read_text(encoding='utf-8')
           assert 'vpnNetwork.openConnection' in diagnostic
           assert 'ZentRuntimeEvents.snapshot(context)' in diagnostic
+          assert 'ZentSocksProbe.run(' in diagnostic
+          assert Path('V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/ZentSocksProbe.kt').is_file()
           assert Path('V2rayNG/app/src/main/java/com/v2ray/ang/util/ZentRuntimeEvents.kt').is_file()
           core = Path('V2rayNG/app/src/main/java/com/v2ray/ang/service/TProxyService.kt').read_text(encoding='utf-8')
           assert 'HEV TUN native startup returned false' in core
           assert 'HEV_TUN_STARTED' in core
           assert 'ZentRuntimeEvents.record(this, "TUN_START_FAILED")' in Path('V2rayNG/app/src/main/java/com/v2ray/ang/service/CoreVpnService.kt').read_text()
           assert 'XRAY_CORE_STARTED' in Path('V2rayNG/app/src/main/java/com/v2ray/ang/core/CoreServiceManager.kt').read_text()
-          print('v2.4.1 runtime diagnostic preflight passed')
+          print('v2.4.2 SOCKS diagnostic preflight passed')
           PYVERIFY
 
       - name: Set up Android SDK
@@ -128,16 +130,17 @@ jobs:
           test -n "$APK" && test -s "$APK"
           "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$APK" | tee /tmp/zent-badging.txt
           grep 'package: name=' /tmp/zent-badging.txt | grep -q 'com.zentplus.vpn'
-          # ABI-specific ARM64 split APKs encode the base version code 765 as 4000765.
-          grep 'package: name=' /tmp/zent-badging.txt | grep -q "versionCode='4000766'"
+          # ABI-specific ARM64 split APKs encode base version code 767 as 4000767.
+          grep 'package: name=' /tmp/zent-badging.txt | grep -q "versionCode='4000767'"
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$APK"
           mkdir -p artifacts
-          cp "$APK" artifacts/ZentPlus-2.4.1-runtime-diagnostics-arm64-release.apk
+          cp "$APK" artifacts/ZentPlus-2.4.2-socks-diagnostics-arm64-release.apk
+          test "$(find artifacts -maxdepth 1 -name '*.apk' -type f | wc -l)" -eq 1
 
       - name: Upload signed update APK
         uses: actions/upload-artifact@v7
         with:
-          name: zent-plus-v241-runtime-diagnostics-release-apk
-          path: artifacts/ZentPlus-2.4.1-runtime-diagnostics-arm64-release.apk
+          name: zent-plus-v242-socks-diagnostics-release-apk
+          path: artifacts/*.apk
           if-no-files-found: error
           retention-days: 14
