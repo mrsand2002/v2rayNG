@@ -1,0 +1,72 @@
+name: Publish Zent Plus v2.8.2 to in-app updates
+
+on:
+  push:
+    branches: ['feature/zent-v282-update-release']
+    paths: ['.github/workflows/zent-v282-publish-release.yml']
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: mrsand2002/v2rayNG
+    steps:
+      - name: Wait for version 2.8.2 signed APK verification
+        run: |
+          gh run watch 44929241473 --repo "$GH_REPO" --exit-status
+          gh run view 44929241473 --repo "$GH_REPO" --json conclusion,headSha \
+            --jq 'select(.conclusion=="success" and .headSha=="e7fa3d01ff22c6887a3ed92ae8bd0800897d6b72") | .headSha' \
+            | grep -Fx e7fa3d01ff22c6887a3ed92ae8bd0800897d6b72
+
+      - name: Download exact signed 2.8.2 APK
+        run: |
+          mkdir -p "$RUNNER_TEMP/zent-apk"
+          gh run download 44929241473 --repo "$GH_REPO" \
+            --name zent-plus-v282-session-usage-arm64-apk --dir "$RUNNER_TEMP/zent-apk"
+          APK="$RUNNER_TEMP/zent-apk/ZentPlus-2.8.2-session-usage-arm64-release.apk"
+          test -s "$APK"
+          unzip -t "$APK" > /dev/null
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
+          sha256sum "$APK"
+
+      - name: Publish new stable v2.8.2 release with APK
+        run: |
+          if gh release view v2.8.2 --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo 'Release v2.8.2 already exists. Refusing to overwrite.' >&2
+            exit 1
+          fi
+          cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          ## Zent Plus v2.8.2 — In-App Update Availability
+
+          **Update from v2.8.1:** This is a version bump of the working v2.8.1 application so devices on v2.8.1 can recognize a newer release using Zent Plus's built-in GitHub release update checker. The fixes from v2.8.1 are retained; no new VPN engine behavior is introduced.
+
+          - Persist the displayed session timer when returning to Zent Plus from another app.
+          - Synchronize device-estimated data usage to the backend and show usage sync status.
+          - Keep Admin Dashboard customer app usage and last-sync reporting.
+          - Preserve All-Time, Today, This Month and Reset Usage.
+          - Remove the customer Announcements tab while keeping one-time admin popup messages.
+          - Preserve managed VLESS access, TLS/SNI settings and account login.
+
+          **Install:** Download the signed ARM64 `ZentPlus-2.8.2-session-usage-arm64-release.apk` asset and install it over Zent Plus. Package `com.zentplus.vpn`, new version code 785 (ARM64 split code 4000785), version name `2.8.2`. Do **not** uninstall or clear data.
+
+          The in-app update alert should appear for versions earlier than 2.8.2 when the app checks GitHub's latest stable release; users on v2.8.2 will not see an alert. Restart the app while signed in to trigger its startup update check. App traffic remains a device estimate; real-time VPN online status requires a separate 3X-UI connection.
+          NOTES
+          gh release create v2.8.2 "$APK_PATH" \
+            --repo "$GH_REPO" \
+            --target e7fa3d01ff22c6887a3ed92ae8bd0800897d6b72 \
+            --title 'Zent Plus v2.8.2 — In-App Update Availability' \
+            --notes-file "$RUNNER_TEMP/release-notes.md"
+
+      - name: Verify official update feed points to 2.8.2 signed APK
+        run: |
+          gh release view v2.8.2 --repo "$GH_REPO" --json isDraft,isPrerelease,assets \
+            --jq 'select(.isDraft==false and .isPrerelease==false) | .assets[].name' \
+            | grep -Fx 'ZentPlus-2.8.2-session-usage-arm64-release.apk'
+          gh api "repos/$GH_REPO/releases/latest" --jq '.tag_name' | grep -Fx 'v2.8.2'
