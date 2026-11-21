@@ -1,4 +1,4 @@
-name: Zent Plus v2.5.0 — Managed VLESS Fix Test APK
+name: Zent Plus v2.5.1 — Secure SNI Certificate Fix APK
 
 on:
   push:
@@ -22,11 +22,11 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Prepare Zent Plus v2.5.0 managed VLESS correctness overlay
+      - name: Prepare Zent Plus v2.5.1 secure domain-fronted VLESS overlay
         env:
           ZENT_API_URL: https://zent-plus-backend-production.up.railway.app
-          ZENT_VERSION_NAME: '2.5.0'
-          ZENT_VERSION_CODE: '769'
+          ZENT_VERSION_NAME: '2.5.1'
+          ZENT_VERSION_CODE: '770'
         run: |
           test -s zent-v22-overlay.zip
           unzip -oq zent-v22-overlay.zip -d .
@@ -43,12 +43,16 @@ jobs:
           assert 'private fun ZentAppearanceCard(' in ui
           assert 'RadioButton(selected = appearanceMode' not in ui
           assert 'applicationId = "com.zentplus.vpn"' in gradle
-          assert 'versionCode = 769' in gradle
-          assert 'versionName = "2.5.0"' in gradle
+          assert 'versionCode = 770' in gradle
+          assert 'versionName = "2.5.1"' in gradle
           assert '"Diagnostics" -> {' in ui
-          assert 'zent-managed-v3:' in ui
+          assert 'zent-managed-v4:' in ui
           activity = Path('V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/MainActivity.kt').read_text(encoding='utf-8')
           assert 'actual.password == expected.password' in activity
+          assert 'assigned.copy(verifyPeerCertByName = assigned.server!!.trim())' in activity
+          assert 'assigned.pinnedCA256.isNullOrBlank()' in activity
+          assert 'assigned.verifyPeerCertByName.isNullOrBlank()' in activity
+          assert 'allowInsecure = true' not in activity
           assert 'actual.sni == expected.sni' in activity
           assert 'actual.fingerPrint == expected.fingerPrint' in activity
           assert 'actual.alpn == expected.alpn' in activity
@@ -59,6 +63,11 @@ jobs:
           assert 'vpnNetwork.openConnection' in diagnostic
           assert 'ZentRuntimeEvents.snapshot(context)' in diagnostic
           assert 'ZentSocksProbe.run(' in diagnostic
+          assert 'ZentCoreErrors.summarize()' in diagnostic
+          classifier = Path('V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/ZentCoreErrors.kt')
+          assert classifier.is_file()
+          assert 'Xray log contents withheld to protect server credentials' in classifier.read_text()
+          assert 'GoLog:W' in classifier.read_text()
           assert Path('V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/ZentSocksProbe.kt').is_file()
           probe = Path('V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/ZentSocksProbe.kt').read_text()
           assert 'SOCKS5 failure category:' in probe
@@ -70,7 +79,7 @@ jobs:
           assert 'HEV_TUN_STARTED' in core
           assert 'ZentRuntimeEvents.record(this, "TUN_START_FAILED")' in Path('V2rayNG/app/src/main/java/com/v2ray/ang/service/CoreVpnService.kt').read_text()
           assert 'XRAY_CORE_STARTED' in Path('V2rayNG/app/src/main/java/com/v2ray/ang/core/CoreServiceManager.kt').read_text()
-          print('v2.5.0 managed VLESS preflight passed')
+          print('v2.5.1 secure TLS/SNI preflight passed')
           PYVERIFY
 
       - name: Set up Android SDK
@@ -143,17 +152,17 @@ jobs:
           test -n "$APK" && test -s "$APK"
           "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$APK" | tee /tmp/zent-badging.txt
           grep 'package: name=' /tmp/zent-badging.txt | grep -q 'com.zentplus.vpn'
-          # ABI-specific ARM64 split APKs encode base version code 769 as 4000769.
-          grep 'package: name=' /tmp/zent-badging.txt | grep -q "versionCode='4000769'"
+          # ABI-specific ARM64 split APKs encode base version code 770 as 4000770.
+          grep 'package: name=' /tmp/zent-badging.txt | grep -q "versionCode='4000770'"
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$APK"
           mkdir -p artifacts
-          cp "$APK" artifacts/ZentPlus-2.5.0-managed-vless-fix-arm64-release.apk
+          cp "$APK" artifacts/ZentPlus-2.5.1-secure-sni-fix-arm64-release.apk
           test "$(find artifacts -maxdepth 1 -name '*.apk' -type f | wc -l)" -eq 1
 
       - name: Upload signed update APK
         uses: actions/upload-artifact@v7
         with:
-          name: zent-plus-v250-managed-vless-fix-release-apk
+          name: zent-plus-v251-secure-sni-fix-release-apk
           path: artifacts/*.apk
           if-no-files-found: error
           retention-days: 14
