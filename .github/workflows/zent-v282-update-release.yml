@@ -1,9 +1,9 @@
-name: Zent Plus v2.8.2 — App Update Release Signed APK
+name: Zent Plus v2.8.3 — Premium Home CI (compat path)
 
 on:
   push:
     branches:
-      - 'feature/zent-v282-update-release'
+      - 'feature/zent-v283-premium-home'
     paths:
       - '.github/workflows/zent-v282-update-release.yml'
   workflow_dispatch:
@@ -22,15 +22,15 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Prepare Zent Plus 2.8.2 from verified session/usage fixes
+      - name: Prepare Zent Plus 2.8.3 premium Home UI without engine changes
         env:
           ZENT_API_URL: https://zent-plus-backend-production.up.railway.app
-          ZENT_VERSION_NAME: '2.8.2'
-          ZENT_VERSION_CODE: '785'
+          ZENT_VERSION_NAME: '2.8.3'
+          ZENT_VERSION_CODE: '786'
         run: |
           test -s zent-v22-overlay.zip
           unzip -oq zent-v22-overlay.zip -d .
-          python3 -m py_compile scripts/zent-v23-ui-patch.py scripts/zent-v25-managed-profile-fix.py scripts/zent-v26-clean-release.py scripts/zent-v27-app-patch.py scripts/zent-v28-app-patch.py scripts/zent-v281-app-patch.py zent/github/apply_zent.py
+          python3 -m py_compile scripts/zent-v23-ui-patch.py scripts/zent-v25-managed-profile-fix.py scripts/zent-v26-clean-release.py scripts/zent-v27-app-patch.py scripts/zent-v28-app-patch.py scripts/zent-v281-app-patch.py scripts/zent-v283-premium-home-patch.py zent/github/apply_zent.py
           python3 scripts/zent-v23-ui-patch.py
           python3 scripts/zent-v25-managed-profile-fix.py
           python3 zent/github/apply_zent.py
@@ -38,6 +38,7 @@ jobs:
           python3 scripts/zent-v27-app-patch.py
           python3 scripts/zent-v28-app-patch.py
           python3 scripts/zent-v281-app-patch.py
+          python3 scripts/zent-v283-premium-home-patch.py
           python3 - <<'PYVERIFY'
           from pathlib import Path
           from xml.etree import ElementTree as ET
@@ -109,10 +110,21 @@ jobs:
           assert 'TrafficStats.getUidTxBytes' in tracker
           assert 'usageTracker.sample(activeUsername, isRunning)' in ui
           assert 'usageTracker.sample(activeUsername, isRunning, sessionRx, sessionTx)' not in ui
+          assert 'ZentPremiumTrafficGraph(' in ui
+          assert 'PRIVATE CONNECTION' in ui
+          assert 'NETWORK ACTIVITY' in ui
+          assert 'downloadSamples.add(rxSpeed' in ui
+          assert 'uploadSamples.add(txSpeed' in ui
+          assert '.shadow(' in ui
+          assert 'if (isRunning) 3.dp else 1.dp' in ui
+          assert '"Announcements" -> {' not in ui
+          assert 'Server Managed By Mr.මල' in ui
+          assert (base / 'ui/main/ZentSessionClock.kt').exists()
+          assert 'ZentApi.uploadUsage(context, token, current)' in ui
           assert 'applicationId = "com.zentplus.vpn"' in gradle
-          assert 'versionCode = 785' in gradle
-          assert 'versionName = "2.8.2"' in gradle
-          print('ZENT PLUS v2.8.2 preflight: original TLS/SNI preserved; persistent session/usage + popups; menu cleaned')
+          assert 'versionCode = 786' in gradle
+          assert 'versionName = "2.8.3"' in gradle
+          print('ZENT PLUS v2.8.3 premium Home preflight: original TLS/SNI preserved; persistent session/usage + popups; menu cleaned')
           PYVERIFY
 
       - name: Set up Android SDK
@@ -185,17 +197,17 @@ jobs:
           test -n "$APK" && test -s "$APK"
           "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$APK" | tee /tmp/zent-badging.txt
           grep 'package: name=' /tmp/zent-badging.txt | grep -q 'com.zentplus.vpn'
-          # ABI-specific ARM64 splits encode base 785 as 4000785.
-          grep 'package: name=' /tmp/zent-badging.txt | grep -q "versionCode='4000785'"
+          # ABI-specific ARM64 splits encode base 786 as 4000786.
+          grep 'package: name=' /tmp/zent-badging.txt | grep -q "versionCode='4000786'"
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$APK"
           mkdir -p artifacts
-          cp "$APK" artifacts/ZentPlus-2.8.2-session-usage-arm64-release.apk
+          cp "$APK" artifacts/ZentPlus-2.8.3-premium-home-test-arm64.apk
           test "$(find artifacts -maxdepth 1 -name '*.apk' -type f | wc -l)" -eq 1
 
       - name: Upload signed update APK
         uses: actions/upload-artifact@v7
         with:
-          name: zent-plus-v282-session-usage-arm64-apk
+          name: zent-plus-v283-premium-home-arm64-test
           path: artifacts/*.apk
           if-no-files-found: error
           retention-days: 14
