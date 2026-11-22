@@ -133,6 +133,8 @@ private fun ZentPremiumTrafficGraph(
     val bg = if (darkMode) Color(0xFF132A3E) else Color(0xFFEDF5FB)
     val label = if (darkMode) Color(0xFFA8BDCF) else Color(0xFF557085)
     val uploadColor = Color(0xFFE8A56B)
+    // Cyan is a theme-driven @Composable value: resolve it outside Canvas DrawScope.
+    val downloadColor = Cyan
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = bg,
@@ -185,7 +187,7 @@ private fun ZentPremiumTrafficGraph(
                         return path
                     }
                     if (downloadSamples.size > 1) {
-                        drawPath(historyPath(downloadSamples), color = Cyan,
+                        drawPath(historyPath(downloadSamples), color = downloadColor,
                             style = Stroke(width = 2.5.dp.toPx()))
                     }
                     if (uploadSamples.size > 1) {
@@ -198,7 +200,7 @@ private fun ZentPremiumTrafficGraph(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(22.dp)
             ) {
-                Text("● Download", color = Cyan, fontSize = 12.sp)
+                Text("● Download", color = downloadColor, fontSize = 12.sp)
                 Text("● Upload", color = uploadColor, fontSize = 12.sp)
             }
             Text("Live device estimate · Not exact server traffic",
