@@ -19,7 +19,7 @@ jobs:
       - name: Checkout source and native submodules
         uses: actions/checkout@v7
         with:
-          ref: ccad034bef99c8003321b7e03a9d494d0f406399
+          ref: 6827909c2eb60f71035cb5785db19aa159a372e6
           submodules: recursive
           fetch-depth: 0
 
@@ -112,6 +112,8 @@ jobs:
           assert 'usageTracker.sample(activeUsername, isRunning)' in ui
           assert 'usageTracker.sample(activeUsername, isRunning, sessionRx, sessionTx)' not in ui
           assert 'ZentPremiumTrafficGraph(' in ui
+          assert 'val downloadColor = Cyan' in ui
+          assert 'drawPath(historyPath(downloadSamples), color = downloadColor' in ui
           assert 'PRIVATE CONNECTION' in ui
           assert 'NETWORK ACTIVITY' in ui
           assert 'downloadSamples.add(rxSpeed' in ui
