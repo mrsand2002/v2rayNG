@@ -1,4 +1,4 @@
-name: Zent Plus v2.8.3 premium home source inspection
+name: Zent Plus v2.8.3 premium home source inspection (home only)
 on:
   push:
     branches: ['feature/zent-v283-premium-home']
